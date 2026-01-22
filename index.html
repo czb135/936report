@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NJ936 调度日报生成器 V2.3</title>
+    <title>NJ936 调度日报生成器 V2.4</title>
     <style>
         :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); padding: 20px; max-width: 900px; margin: 0 auto; }
@@ -32,7 +32,7 @@
 </head>
 <body>
 
-    <h1>🚚 NJ936 调度工具 V2.3</h1>
+    <h1>🚚 NJ936 调度工具 V2.4</h1>
     <div class="subtitle" id="displayDate"></div>
 
     <div class="inherit-box">
@@ -76,9 +76,9 @@
                     <button class="btn-dest" onclick="setDest('s2','BOS')">BOS</button>
                     <button class="btn-dest" onclick="setDest('s2','PIT')">PIT</button>
                 </div>
-                <input type="text" id="s2-plates" placeholder="板数">
-                <input type="time" id="s2-time">
-                <input type="text" id="s2-uni" placeholder="UNI号码">
+                板数: <input type="text" id="s2-plates" placeholder="板数" style="width:60px">
+                时间: <input type="time" id="s2-time">
+                UNI: <input type="text" id="s2-uni" placeholder="数字即可">
                 <button class="btn-add" onclick="addS2()">添加</button>
             </div>
             <div class="queue-list" id="s2-list"></div>
@@ -91,8 +91,9 @@
                     <button class="btn-dest" onclick="setDest('s3','JFK')">JFK</button>
                     <button class="btn-dest" onclick="setDest('s3','600')">600</button>
                 </div>
-                <input type="text" id="s3-plates" placeholder="板数(>12双号)">
-                <input type="time" id="s3-time">
+                板数: <input type="text" id="s3-plates" placeholder="板数(>12双号)" style="width:100px">
+                时间: <input type="time" id="s3-time">
+                UNI: <input type="text" id="s3-uni" placeholder="数字即可">
                 <button class="btn-add" onclick="addS3()">添加</button>
             </div>
             <div class="queue-list" id="s3-list"></div>
@@ -105,10 +106,10 @@
                     <button class="btn-dest" onclick="setDest('s4','ATL')">ATL</button>
                     <button class="btn-dest" onclick="setDest('s4','MIA')">MIA</button>
                 </div>
-                <input type="text" id="s4-plates" placeholder="板数">
-                <input type="text" id="s4-date" placeholder="日期(如12/17)" style="width:70px">
-                <input type="time" id="s4-time">
-                <input type="text" id="s4-uni" placeholder="UNI">
+                板数: <input type="text" id="s4-plates" placeholder="板数" style="width:60px">
+                日期: <input type="text" id="s4-date" placeholder="12/17" style="width:70px">
+                时间: <input type="time" id="s4-time">
+                UNI: <input type="text" id="s4-uni" placeholder="数字即可">
                 <button class="btn-add" onclick="addS4()">添加</button>
             </div>
             <div class="queue-list" id="s4-list"></div>
@@ -120,8 +121,8 @@
                 LAX:<input type="number" id="s5-lax" value="0" style="width:45px">
                 SEA:<input type="number" id="s5-sea" value="0" style="width:45px">
                 SJC:<input type="number" id="s5-sjc" value="0" style="width:45px">
-                UNI:<input type="text" id="s5-uni" style="width:80px">
-                <input type="time" id="s5-time">
+                UNI: <input type="text" id="s5-uni" style="width:80px">
+                时间: <input type="time" id="s5-time">
             </div>
             <div class="input-group">
                 <div id="s5-carrier">
@@ -169,7 +170,6 @@
             return val.toUpperCase().startsWith("UNI") ? val.toUpperCase() : "UNI"+val;
         }
 
-        // Section 1 Special Logic
         function setS1Dest(v) {
             sel.s1 = v;
             document.querySelectorAll(`#s1-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v));
@@ -192,7 +192,6 @@
             render('s1');
         }
 
-        // Common Logic
         function setDest(s, v) { sel[s] = v; document.querySelectorAll(`#${s}-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
         function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
 
@@ -204,10 +203,10 @@
         }
 
         function addS3() {
-            const p = document.getElementById('s3-plates').value;
-            if(!sel.s3 || !p) return alert("请完整填写");
+            const p = document.getElementById('s3-plates').value, u = fixUni(document.getElementById('s3-uni').value);
+            if(!sel.s3 || !p || !u) return alert("请完整填写");
             const num = parseInt(p.match(/\d+/)) || 0;
-            data.s3.push({ text: `EWR936-${sel.s3} (${p}板) ${document.getElementById('s3-time').value}发`, dbl: num > 12 });
+            data.s3.push({ text: `EWR936-${sel.s3} (${p}板) ${document.getElementById('s3-time').value}发 - ${u}`, dbl: num > 12 });
             render('s3');
         }
 
