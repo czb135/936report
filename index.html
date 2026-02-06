@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NJ936 调度日报生成器 V2.4</title>
+    <title>NJ936 调度日报生成器 V2.5</title>
     <style>
         :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); padding: 20px; max-width: 900px; margin: 0 auto; }
@@ -22,7 +22,7 @@
         .queue-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed #eee; }
         .del-btn { color: #ef4444; cursor: pointer; font-weight: bold; }
         .btn-gen { background: #4f46e5; color: white; border: none; padding: 15px; width: 100%; font-size: 1.1em; border-radius: 8px; cursor: pointer; margin-top: 20px; }
-        textarea#resultArea { width: 100%; height: 350px; margin-top: 15px; border-radius: 8px; padding: 10px; box-sizing: border-box; font-family: monospace; }
+        textarea#resultArea { width: 100%; height: 350px; margin-top: 15px; border-radius: 8px; padding: 10px; box-sizing: border-box; font-family: monospace; white-space: pre; }
         .btn-copy { background: #374151; color: white; margin-top: 10px; width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; }
         .multi-stop-box { background: #f1f5f9; padding: 8px; border-radius: 4px; display: none; gap: 8px; align-items: center; }
         .multi-stop-box input { width: 45px; }
@@ -32,7 +32,7 @@
 </head>
 <body>
 
-    <h1>🚚 NJ936 调度工具 V2.4</h1>
+    <h1>🚚 NJ936 调度工具 V2.5</h1>
     <div class="subtitle" id="displayDate"></div>
 
     <div class="inherit-box">
@@ -91,7 +91,7 @@
                     <button class="btn-dest" onclick="setDest('s3','JFK')">JFK</button>
                     <button class="btn-dest" onclick="setDest('s3','600')">600</button>
                 </div>
-                板数: <input type="text" id="s3-plates" placeholder="板数(>12双号)" style="width:100px">
+                板数: <input type="text" id="s3-plates" placeholder="板数" style="width:100px">
                 时间: <input type="time" id="s3-time">
                 UNI: <input type="text" id="s3-uni" placeholder="数字即可">
                 <button class="btn-add" onclick="addS3()">添加</button>
@@ -137,7 +137,7 @@
     </div>
 
     <button class="btn-gen" onclick="generate()">📝 生成最终日报</button>
-    <textarea id="resultArea"></textarea>
+    <textarea id="resultArea" readonly></textarea>
     <button class="btn-copy" onclick="copyResult()">📋 复制到剪贴板</button>
 
     <script>
@@ -178,27 +178,29 @@
             document.getElementById('s1-plates-multi').style.display = isMulti ? 'flex' : 'none';
         }
 
+        function setDest(s, v) { sel[s] = v; document.querySelectorAll(`#${s}-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
+        function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
+
+        // --- 核心逻辑：修改输出格式 ---
+
         function addS1() {
             let plateStr = "";
             if(sel.s1 === 'CMH-CVG-SDF') {
                 const c=document.getElementById('s1-cmh').value, v=document.getElementById('s1-cvg').value, s=document.getElementById('s1-sdf').value;
                 plateStr = `${c}*CMH, ${v}*CVG, ${s}*SDF`;
             } else {
-                plateStr = document.getElementById('s1-plates').value + "板";
+                plateStr = document.getElementById('s1-plates').value + "*" + sel.s1;
             }
             const u = fixUni(document.getElementById('s1-uni').value);
             if(!sel.s1 || !u) return alert("请填写完整");
-            data.s1.push({ text: `NJ936-${sel.s1} (${plateStr}) ${document.getElementById('s1-time').value}发 - ${u}`, dbl: false });
+            data.s1.push({ text: `NJ936-${sel.s1} ${plateStr} ${document.getElementById('s1-time').value}发 - ${u}`, dbl: false });
             render('s1');
         }
-
-        function setDest(s, v) { sel[s] = v; document.querySelectorAll(`#${s}-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
-        function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
 
         function addS2() {
             const p = document.getElementById('s2-plates').value, u = fixUni(document.getElementById('s2-uni').value);
             if(!sel.s2 || !p || !u) return alert("请完整填写");
-            data.s2.push({ text: `NJ936-${sel.s2} (${p}板) ${document.getElementById('s2-time').value}发 - ${u}`, dbl: false });
+            data.s2.push({ text: `NJ936-${sel.s2} ${p}*${sel.s2} ${document.getElementById('s2-time').value}发 - ${u}`, dbl: false });
             render('s2');
         }
 
@@ -206,14 +208,14 @@
             const p = document.getElementById('s3-plates').value, u = fixUni(document.getElementById('s3-uni').value);
             if(!sel.s3 || !p || !u) return alert("请完整填写");
             const num = parseInt(p.match(/\d+/)) || 0;
-            data.s3.push({ text: `EWR936-${sel.s3} (${p}板) ${document.getElementById('s3-time').value}发 - ${u}`, dbl: num > 12 });
+            data.s3.push({ text: `EWR936-${sel.s3} ${p}*${sel.s3} ${document.getElementById('s3-time').value}发 - ${u}`, dbl: num > 12 });
             render('s3');
         }
 
         function addS4() {
             const p = document.getElementById('s4-plates').value, d = document.getElementById('s4-date').value, u = fixUni(document.getElementById('s4-uni').value);
             if(!sel.s4 || !p || !u) return alert("请完整填写");
-            data.s4.push({ text: `NJ936-${sel.s4}(${p}板)${d?' '+d:''} ${document.getElementById('s4-time').value}发 - ${u}`, dbl: false });
+            data.s4.push({ text: `NJ936-${sel.s4} ${p}*${sel.s4}${d?' '+d:''} ${document.getElementById('s4-time').value}发 - ${u}`, dbl: false });
             render('s4');
         }
 
@@ -221,7 +223,7 @@
             const lx=document.getElementById('s5-lax').value, se=document.getElementById('s5-sea').value, sj=document.getElementById('s5-sjc').value, u = fixUni(document.getElementById('s5-uni').value);
             if((lx+se+sj==0) || !u || !sel.carrier) return alert("请完整填写");
             let pts = []; if(lx>0) pts.push(lx+'*LAX'); if(se>0) pts.push(se+'*SEA'); if(sj>0) pts.push(sj+'*SJC');
-            data.s5.push({ text: `NJ936-LAX(${pts.join(', ')})${document.getElementById('s5-time').value}发 - ${u}(${sel.carrier})`, dbl: false });
+            data.s5.push({ text: `NJ936-LAX ${pts.join(', ')} ${document.getElementById('s5-time').value}发 - ${u}(${sel.carrier})`, dbl: false });
             render('s5');
         }
 
