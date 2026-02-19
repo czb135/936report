@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NJ936 调度日报生成器 V2.6</title>
+    <title>NJ936 调度日报生成器 V2.7 (ORD优化+双单号版)</title>
     <style>
         :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); padding: 20px; max-width: 900px; margin: 0 auto; }
@@ -24,15 +24,25 @@
         .btn-gen { background: #4f46e5; color: white; border: none; padding: 15px; width: 100%; font-size: 1.1em; border-radius: 8px; cursor: pointer; margin-top: 20px; }
         textarea#resultArea { width: 100%; height: 350px; margin-top: 15px; border-radius: 8px; padding: 10px; box-sizing: border-box; font-family: monospace; white-space: pre; }
         .btn-copy { background: #374151; color: white; margin-top: 10px; width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; }
-        .multi-stop-box { background: #f1f5f9; padding: 8px; border-radius: 4px; display: none; gap: 8px; align-items: center; }
-        .multi-stop-box input { width: 45px; }
-        .s1 { border-left-color: #ef4444; } .s2 { border-left-color: #f59e0b; } 
-        .s3 { border-left-color: #10b981; } .s4 { border-left-color: #8b5cf6; } .s5 { border-left-color: #ec4899; }
+        
+        /* 多站点输入框样式 */
+        .multi-stop-box { background: #f1f5f9; padding: 8px; border-radius: 4px; display: none; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .multi-stop-box label { font-size: 0.9em; color: #444; }
+        .multi-stop-box input { width: 50px; text-align: center; }
+
+        .s1 { border-left-color: #ef4444; } 
+        /* s2 隐藏逻辑 */
+        .s2 { border-left-color: #f59e0b; display: none; } 
+        .s3 { border-left-color: #10b981; } 
+        .s4 { border-left-color: #8b5cf6; } 
+        .s5 { border-left-color: #ec4899; }
+        
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <h1>🚚 NJ936 调度工具 V2.6</h1>
+    <h1>🚚 NJ936 调度工具 V2.7</h1>
     <div class="subtitle" id="displayDate"></div>
 
     <div class="inherit-box">
@@ -55,11 +65,14 @@
                 <div id="s1-plates-single">
                     板数: <input type="text" id="s1-plates" placeholder="如:26">
                 </div>
+                
                 <div id="s1-plates-multi" class="multi-stop-box">
-                    CMH: <input type="number" id="s1-cmh" value="0">
-                    CVG: <input type="number" id="s1-cvg" value="0">
-                    SDF: <input type="number" id="s1-sdf" value="0">
+                    <label>CMH:<input type="number" id="s1-cmh" value="0"></label>
+                    <label>CVG:<input type="number" id="s1-cvg" value="0"></label>
+                    <label>SDF:<input type="number" id="s1-sdf" value="0"></label>
+                    <label id="lbl-s1-ord" class="hidden">ORD:<input type="number" id="s1-ord" value="0"></label>
                 </div>
+
                 时间: <input type="time" id="s1-time">
                 UNI: <input type="text" id="s1-uni" placeholder="数字即可">
                 <button class="btn-add" onclick="addS1()">添加</button>
@@ -91,9 +104,14 @@
                     <button class="btn-dest" onclick="setDest('s3','JFK')">JFK</button>
                     <button class="btn-dest" onclick="setDest('s3','600')">600</button>
                 </div>
-                板数: <input type="text" id="s3-plates" placeholder="板数" style="width:100px">
+                板数: <input type="text" id="s3-plates" placeholder="板数" style="width:100px" oninput="checkS3Plates()">
                 时间: <input type="time" id="s3-time">
-                UNI: <input type="text" id="s3-uni" placeholder="数字即可">
+            </div>
+            <div class="input-group">
+                UNI 1: <input type="text" id="s3-uni" placeholder="主单号">
+                <span id="s3-uni2-box" class="hidden">
+                    UNI 2: <input type="text" id="s3-uni2" placeholder="第二单号">
+                </span>
                 <button class="btn-add" onclick="addS3()">添加</button>
             </div>
             <div class="queue-list" id="s3-list"></div>
@@ -167,49 +185,112 @@
         function fixUni(val) {
             if(!val) return "";
             val = val.trim();
+            // 如果已经是纯数字，加UNI，如果已经有UNI则不加
             return val.toUpperCase().startsWith("UNI") ? val.toUpperCase() : "UNI"+val;
         }
 
+        // --- S1 逻辑修改 ---
         function setS1Dest(v) {
             sel.s1 = v;
             document.querySelectorAll(`#s1-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v));
-            const isMulti = (v === 'CMH-CVG-SDF');
+            
+            // ORD 和 CMH-CVG-SDF 都需要多站点输入框
+            const isMulti = (v === 'CMH-CVG-SDF' || v === 'ORD');
+            
             document.getElementById('s1-plates-single').style.display = isMulti ? 'none' : 'block';
             document.getElementById('s1-plates-multi').style.display = isMulti ? 'flex' : 'none';
+            
+            // 如果是 ORD，显示 ORD 的具体板数输入框；如果是 CMH 组合，隐藏 ORD 输入框
+            const ordInput = document.getElementById('lbl-s1-ord');
+            if(v === 'ORD') {
+                ordInput.classList.remove('hidden');
+            } else {
+                ordInput.classList.add('hidden');
+            }
         }
-
-        function setDest(s, v) { sel[s] = v; document.querySelectorAll(`#${s}-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
-        function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
-
-        // --- 核心逻辑更新：包含括号 ---
 
         function addS1() {
             let plateStr = "";
-            if(sel.s1 === 'CMH-CVG-SDF') {
-                const c=document.getElementById('s1-cmh').value, v=document.getElementById('s1-cvg').value, s=document.getElementById('s1-sdf').value;
-                plateStr = `(${c}*CMH, ${v}*CVG, ${s}*SDF)`;
+            
+            if(sel.s1 === 'CMH-CVG-SDF' || sel.s1 === 'ORD') {
+                // 获取各站点数据
+                const c = parseInt(document.getElementById('s1-cmh').value) || 0;
+                const v = parseInt(document.getElementById('s1-cvg').value) || 0;
+                const s = parseInt(document.getElementById('s1-sdf').value) || 0;
+                const o = parseInt(document.getElementById('s1-ord').value) || 0;
+
+                let parts = [];
+                if(c > 0) parts.push(c + "*CMH");
+                if(v > 0) parts.push(v + "*CVG");
+                if(s > 0) parts.push(s + "*SDF");
+                if(sel.s1 === 'ORD' && o > 0) parts.push(o + "*ORD");
+
+                if(parts.length === 0) return alert("请至少填写一个站点的板数");
+                
+                plateStr = `(${parts.join(', ')})`;
             } else {
-                plateStr = `(${document.getElementById('s1-plates').value}*${sel.s1})`;
+                const val = document.getElementById('s1-plates').value;
+                if(!val) return alert("请填写板数");
+                plateStr = `(${val}*${sel.s1})`;
             }
+
             const u = fixUni(document.getElementById('s1-uni').value);
-            if(!sel.s1 || !u) return alert("请填写完整");
+            if(!sel.s1 || !u) return alert("请填写完整信息");
+            
             data.s1.push({ text: `NJ936-${sel.s1} ${plateStr} ${document.getElementById('s1-time').value}发 - ${u}`, dbl: false });
             render('s1');
         }
+
+        function setDest(s, v) { sel[s] = v; document.querySelectorAll(`#${s}-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
+        
+        // --- S3 Han Express 逻辑修改 ---
+        function checkS3Plates() {
+            const p = document.getElementById('s3-plates').value;
+            const num = parseInt(p.match(/\d+/)) || 0;
+            const u2Box = document.getElementById('s3-uni2-box');
+            
+            if(num > 12) {
+                u2Box.classList.remove('hidden');
+            } else {
+                u2Box.classList.add('hidden');
+            }
+        }
+
+        function addS3() {
+            const p = document.getElementById('s3-plates').value;
+            const u1 = fixUni(document.getElementById('s3-uni').value);
+            const u2 = fixUni(document.getElementById('s3-uni2').value);
+            
+            if(!sel.s3 || !p || !u1) return alert("请完整填写(板数和UNI1)");
+            
+            const num = parseInt(p.match(/\d+/)) || 0;
+            const isDbl = num > 12;
+
+            if(isDbl && !u2) return alert("大于12板需要填写两个UNI单号！");
+
+            let uniDisplay = "";
+            if(isDbl) {
+                uniDisplay = `(${u1}+${u2})`;
+            } else {
+                uniDisplay = u1;
+            }
+
+            data.s3.push({ text: `EWR936-${sel.s3} (${p}*${sel.s3}) ${document.getElementById('s3-time').value}发 - ${uniDisplay}`, dbl: isDbl });
+            render('s3');
+            
+            // 重置输入框
+            document.getElementById('s3-uni2').value = '';
+        }
+
+        function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
+
+        // --- 其他未变动逻辑 ---
 
         function addS2() {
             const p = document.getElementById('s2-plates').value, u = fixUni(document.getElementById('s2-uni').value);
             if(!sel.s2 || !p || !u) return alert("请完整填写");
             data.s2.push({ text: `NJ936-${sel.s2} (${p}*${sel.s2}) ${document.getElementById('s2-time').value}发 - ${u}`, dbl: false });
             render('s2');
-        }
-
-        function addS3() {
-            const p = document.getElementById('s3-plates').value, u = fixUni(document.getElementById('s3-uni').value);
-            if(!sel.s3 || !p || !u) return alert("请完整填写");
-            const num = parseInt(p.match(/\d+/)) || 0;
-            data.s3.push({ text: `EWR936-${sel.s3} (${p}*${sel.s3}) ${document.getElementById('s3-time').value}发 - ${u}`, dbl: num > 12 });
-            render('s3');
         }
 
         function addS4() {
