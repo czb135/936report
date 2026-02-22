@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NJ936 调度日报生成器 V2.7 (ORD优化+双单号版)</title>
+    <title>NJ936 调度日报生成器 V2.9 (隐藏卫星仓版)</title>
     <style>
         :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); padding: 20px; max-width: 900px; margin: 0 auto; }
@@ -42,7 +42,7 @@
 </head>
 <body>
 
-    <h1>🚚 NJ936 调度工具 V2.7</h1>
+    <h1>🚚 NJ936 调度工具 V2.9</h1>
     <div class="subtitle" id="displayDate"></div>
 
     <div class="inherit-box">
@@ -121,10 +121,21 @@
             <h3>🌟【NJ936 NYQZ】</h3>
             <div class="input-group">
                 <div id="s4-dests">
-                    <button class="btn-dest" onclick="setDest('s4','ATL')">ATL</button>
-                    <button class="btn-dest" onclick="setDest('s4','MIA')">MIA</button>
+                    <button class="btn-dest" onclick="setS4Dest('ATL')">ATL</button>
+                    <button class="btn-dest" onclick="setS4Dest('MIA')">MIA</button>
+                    <button class="btn-dest" onclick="setS4Dest('CLE-CMH')">CLE-CMH</button>
                 </div>
-                板数: <input type="text" id="s4-plates" placeholder="板数" style="width:60px">
+            </div>
+            <div class="input-group">
+                <div id="s4-plates-single">
+                    板数: <input type="text" id="s4-plates" placeholder="板数" style="width:60px">
+                </div>
+                
+                <div id="s4-plates-multi" class="multi-stop-box">
+                    <label>CLE:<input type="number" id="s4-cle" value="0"></label>
+                    <label>CMH:<input type="number" id="s4-cmh" value="0"></label>
+                </div>
+
                 日期: <input type="text" id="s4-date" placeholder="12/17" style="width:70px">
                 时间: <input type="time" id="s4-time">
                 UNI: <input type="text" id="s4-uni" placeholder="数字即可">
@@ -147,6 +158,7 @@
                     <button class="btn-dest" onclick="setCarrier('Millennium Transport')">Millennium Transport</button>
                     <button class="btn-dest" onclick="setCarrier('Spot Freight')">Spot Freight</button>
                     <button class="btn-dest" onclick="setCarrier('Princeton Logistics')">Princeton Logistics</button>
+                    <button class="btn-dest" onclick="setCarrier('ITS Logistics')">ITS Logistics</button>
                 </div>
                 <button class="btn-add" onclick="addS5()">添加</button>
             </div>
@@ -159,11 +171,13 @@
     <button class="btn-copy" onclick="copyResult()">📋 复制到剪贴板</button>
 
     <script>
-        let data = { s1:[], s2:[], s3:[], s4:[], s5:[] };
-        let sel = { s1:'', s2:'', s3:'', s4:'', carrier:'' };
+        // 不再维护s2数据
+        let data = { s1:[], s3:[], s4:[], s5:[] };
+        let sel = { s1:'', s3:'', s4:'', carrier:'' };
+        
+        // 移除了 s2 的表头，生成最终内容时就不会带上了
         const HEADERS = {
             s1: "🌟【NJ936-80s大区转运】",
-            s2: "🌟【NJ936-80s卫星仓转运】",
             s3: "🌟【NJ936-Han Express JFK+600转运】",
             s4: "🌟【NJ936 NYQZ】",
             s5: "🌟【NJ936 运力部叫车】"
@@ -173,7 +187,7 @@
             const now = new Date();
             document.getElementById('displayDate').innerText = now.toISOString().split('T')[0];
             const t = getRoundedTime();
-            ['s1','s2','s3','s4','s5'].forEach(id => document.getElementById(id+'-time').value = t);
+            ['s1','s3','s4','s5'].forEach(id => document.getElementById(id+'-time').value = t);
         };
 
         function getRoundedTime() {
@@ -185,35 +199,26 @@
         function fixUni(val) {
             if(!val) return "";
             val = val.trim();
-            // 如果已经是纯数字，加UNI，如果已经有UNI则不加
             return val.toUpperCase().startsWith("UNI") ? val.toUpperCase() : "UNI"+val;
         }
 
-        // --- S1 逻辑修改 ---
+        // --- S1 逻辑 ---
         function setS1Dest(v) {
             sel.s1 = v;
             document.querySelectorAll(`#s1-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v));
             
-            // ORD 和 CMH-CVG-SDF 都需要多站点输入框
             const isMulti = (v === 'CMH-CVG-SDF' || v === 'ORD');
-            
             document.getElementById('s1-plates-single').style.display = isMulti ? 'none' : 'block';
             document.getElementById('s1-plates-multi').style.display = isMulti ? 'flex' : 'none';
             
-            // 如果是 ORD，显示 ORD 的具体板数输入框；如果是 CMH 组合，隐藏 ORD 输入框
             const ordInput = document.getElementById('lbl-s1-ord');
-            if(v === 'ORD') {
-                ordInput.classList.remove('hidden');
-            } else {
-                ordInput.classList.add('hidden');
-            }
+            if(v === 'ORD') ordInput.classList.remove('hidden');
+            else ordInput.classList.add('hidden');
         }
 
         function addS1() {
             let plateStr = "";
-            
             if(sel.s1 === 'CMH-CVG-SDF' || sel.s1 === 'ORD') {
-                // 获取各站点数据
                 const c = parseInt(document.getElementById('s1-cmh').value) || 0;
                 const v = parseInt(document.getElementById('s1-cvg').value) || 0;
                 const s = parseInt(document.getElementById('s1-sdf').value) || 0;
@@ -226,7 +231,6 @@
                 if(sel.s1 === 'ORD' && o > 0) parts.push(o + "*ORD");
 
                 if(parts.length === 0) return alert("请至少填写一个站点的板数");
-                
                 plateStr = `(${parts.join(', ')})`;
             } else {
                 const val = document.getElementById('s1-plates').value;
@@ -241,64 +245,76 @@
             render('s1');
         }
 
+        // --- S4 NYQZ 逻辑 ---
+        function setS4Dest(v) {
+            sel.s4 = v;
+            document.querySelectorAll(`#s4-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v));
+            
+            const isMulti = (v === 'CLE-CMH');
+            document.getElementById('s4-plates-single').style.display = isMulti ? 'none' : 'block';
+            document.getElementById('s4-plates-multi').style.display = isMulti ? 'flex' : 'none';
+        }
+
+        function addS4() {
+            let plateStr = "";
+            let prefix = "NJ936"; 
+            
+            if(sel.s4 === 'CLE-CMH') {
+                prefix = "EWR936"; 
+                const cle = parseInt(document.getElementById('s4-cle').value) || 0;
+                const cmh = parseInt(document.getElementById('s4-cmh').value) || 0;
+                
+                let parts = [];
+                if(cle > 0) parts.push(cle + "*CLE");
+                if(cmh > 0) parts.push(cmh + "*CMH");
+                
+                if(parts.length === 0) return alert("请至少填写一个站点的板数");
+                plateStr = `(${parts.join(', ')})`;
+            } else {
+                const p = document.getElementById('s4-plates').value;
+                if(!p) return alert("请填写板数");
+                plateStr = `(${p}*${sel.s4})`;
+            }
+
+            const d = document.getElementById('s4-date').value;
+            const u = fixUni(document.getElementById('s4-uni').value);
+            
+            if(!sel.s4 || !u) return alert("请完整填写");
+            
+            data.s4.push({ text: `${prefix}-${sel.s4} ${plateStr}${d?' '+d:''} ${document.getElementById('s4-time').value}发 - ${u}`, dbl: false });
+            render('s4');
+        }
+
+        // --- 通用 & 其它原逻辑 ---
         function setDest(s, v) { sel[s] = v; document.querySelectorAll(`#${s}-dests .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
-        
-        // --- S3 Han Express 逻辑修改 ---
+        function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
+
         function checkS3Plates() {
             const p = document.getElementById('s3-plates').value;
             const num = parseInt(p.match(/\d+/)) || 0;
             const u2Box = document.getElementById('s3-uni2-box');
-            
-            if(num > 12) {
-                u2Box.classList.remove('hidden');
-            } else {
-                u2Box.classList.add('hidden');
-            }
+            if(num > 12) u2Box.classList.remove('hidden');
+            else u2Box.classList.add('hidden');
         }
 
         function addS3() {
             const p = document.getElementById('s3-plates').value;
             const u1 = fixUni(document.getElementById('s3-uni').value);
             const u2 = fixUni(document.getElementById('s3-uni2').value);
-            
             if(!sel.s3 || !p || !u1) return alert("请完整填写(板数和UNI1)");
             
             const num = parseInt(p.match(/\d+/)) || 0;
             const isDbl = num > 12;
-
             if(isDbl && !u2) return alert("大于12板需要填写两个UNI单号！");
 
-            let uniDisplay = "";
-            if(isDbl) {
-                uniDisplay = `(${u1}+${u2})`;
-            } else {
-                uniDisplay = u1;
-            }
-
+            let uniDisplay = isDbl ? `(${u1}+${u2})` : u1;
             data.s3.push({ text: `EWR936-${sel.s3} (${p}*${sel.s3}) ${document.getElementById('s3-time').value}发 - ${uniDisplay}`, dbl: isDbl });
             render('s3');
-            
-            // 重置输入框
             document.getElementById('s3-uni2').value = '';
         }
 
-        function setCarrier(v) { sel.carrier = v; document.querySelectorAll(`#s5-carrier .btn-dest`).forEach(b => b.classList.toggle('active', b.innerText===v)); }
-
-        // --- 其他未变动逻辑 ---
-
-        function addS2() {
-            const p = document.getElementById('s2-plates').value, u = fixUni(document.getElementById('s2-uni').value);
-            if(!sel.s2 || !p || !u) return alert("请完整填写");
-            data.s2.push({ text: `NJ936-${sel.s2} (${p}*${sel.s2}) ${document.getElementById('s2-time').value}发 - ${u}`, dbl: false });
-            render('s2');
-        }
-
-        function addS4() {
-            const p = document.getElementById('s4-plates').value, d = document.getElementById('s4-date').value, u = fixUni(document.getElementById('s4-uni').value);
-            if(!sel.s4 || !p || !u) return alert("请完整填写");
-            data.s4.push({ text: `NJ936-${sel.s4} (${p}*${sel.s4})${d?' '+d:''} ${document.getElementById('s4-time').value}发 - ${u}`, dbl: false });
-            render('s4');
-        }
+        // 仅保留原函数定义防报错，但不供界面调用
+        function addS2() {}
 
         function addS5() {
             const lx=document.getElementById('s5-lax').value, se=document.getElementById('s5-sea').value, sj=document.getElementById('s5-sjc').value, u = fixUni(document.getElementById('s5-uni').value);
@@ -315,7 +331,8 @@
 
         function generate() {
             let res = document.getElementById('baseReport').value || `${new Date().toISOString().split('T')[0]}\n\n${Object.values(HEADERS).join('\n\n\n')}`;
-            ['s1','s2','s3','s4','s5'].forEach(k => {
+            // 移除了 s2
+            ['s1','s3','s4','s5'].forEach(k => {
                 if(data[k].length === 0) return;
                 let h = HEADERS[k], start = res.indexOf(h);
                 if(start === -1) return;
@@ -331,8 +348,7 @@
                 data[k].forEach(item => {
                     let id = item.dbl ? `${cur}+${cur+1}` : `${cur}`;
                     cur += item.dbl ? 2 : 1;
-                    let sep = (k==='s2'||k==='s3') ? '.' : '、';
-                    if(k==='s3') sep += ' ';
+                    let sep = (k==='s3') ? '. ' : '、';
                     lines += `🚗${id}${sep}${item.text}\n`;
                 });
                 if(nextIdx !== -1) res = res.substring(0, nextIdx).trimEnd() + "\n" + lines + "\n\n" + res.substring(nextIdx);
